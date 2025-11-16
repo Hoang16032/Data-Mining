@@ -81,7 +81,7 @@ def plot_metrics(depths, f1, prec, rec, acc, model_name):
     ax2.grid(True)
 
     plt.tight_layout()
-    output_file_all = f"churn_{model_name.lower()}_all_metrics_vs_depth.png"
+    output_file_all = f"optimize_{model_name.lower()}.png"
     plt.savefig(output_file_all)
     plt.close() 
     print(f"\nĐã lưu biểu đồ so sánh cho {model_name} vào file: {output_file_all}")
@@ -144,7 +144,7 @@ for depth in DEPTH_RANGE:
         n_estimators=N_TREES_XG,
         max_depth=depth, 
         random_state=42,
-        scale_pos_weight=scale_pos_weight, # Dùng tham số riêng của XGB
+        scale_pos_weight=scale_pos_weight, 
         n_jobs=-1,
         eval_metric='logloss'
     )
@@ -160,6 +160,3 @@ print("Quét XGBoost xong.")
 plot_metrics(DEPTH_RANGE, metrics_xgb['f1'], metrics_xgb['prec'], metrics_xgb['rec'], metrics_xgb['acc'], "XGBoost")
 
 
-print("\n" + "="*50)
-print("--- CHẨN ĐOÁN HOÀN TẤT (3 file ảnh đã được lưu) ---")
-print("="*50 + "\n")

@@ -1,10 +1,10 @@
 import matplotlib 
-matplotlib.use('Agg') # Thêm dòng này nếu bạn gặp lỗi RuntimeError
+matplotlib.use('Agg')
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from xgboost import XGBClassifier # <<< THAY ĐỔI: Dùng XGBoost >>>
+from xgboost import XGBClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import train_test_split
 import warnings
@@ -12,14 +12,12 @@ import numpy as np
 import os
 
 warnings.filterwarnings('ignore')
-
-# --- CÁC THAM SỐ CỐ ĐỊNH ---
 INPUT_FILE = "rfm_training_data.csv"
 FEATURE_COLUMNS = ['Recency', 'Frequency', 'Monetary']
 TARGET_COLUMN = 'y_HighValueChurn'
 POSITIVE_CLASS_NAME = 'High Value Churn (1)'
 NEGATIVE_CLASS_NAME = 'Khác (0)'
-N_ESTIMATORS = 100 # Số lượng cây (tương tự N_TREES)
+N_ESTIMATORS = 100 
 
 print("\n" + "="*50)
 print(f"--- BƯỚC 5: HUẤN LUYỆN MÔ HÌNH XGBOOST ---")
@@ -49,13 +47,10 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 print("\n--- 2. Đã chia dữ liệu thành Train (80%) và Test (20%) ---")
 
-# --- 3.1 (MỚI): TÍNH scale_pos_weight ---
-# Đây là cách XGBoost xử lý mất cân bằng, thay cho class_weight
-# Tỷ lệ = (Số lượng lớp 0) / (Số lượng lớp 1)
+# --- 3.1: TÍNH scale_pos_weight ---
 counts = y_train.value_counts()
 scale_pos_weight = counts[0] / counts[1]
 print(f"   Tính toán 'scale_pos_weight' = {scale_pos_weight:.2f} (để xử lý mất cân bằng)")
-
 
 # --- 4. TÌM MAX_DEPTH TỐI ƯU (Dựa trên F1-Score) ---
 print(f"\n--- 3. Đang tìm max_depth tối ưu (với n_estimators={N_ESTIMATORS})... ---")
@@ -63,14 +58,14 @@ depths = range(3, 16)
 test_f1_scores = []
 
 for depth in depths:
-    model_temp = XGBClassifier( # <-- THAY ĐỔI
+    model_temp = XGBClassifier( 
         n_estimators=N_ESTIMATORS,
         learning_rate = 0.05,
         max_depth=depth, 
         random_state=42,
-        scale_pos_weight=scale_pos_weight, # <-- THAY ĐỔI
+        scale_pos_weight=scale_pos_weight,
         n_jobs=-1,
-        eval_metric='logloss' # Tắt các cảnh báo
+        eval_metric='logloss' 
     )
     model_temp.fit(X_train, y_train)
     
@@ -91,18 +86,18 @@ plt.axvline(x=best_depth, color='grey', linestyle='--', label=f'Best Depth = {be
 plt.legend()
 plt.grid(True)
 
-output_file_depth = "churn_xgb_tuning.png" # <-- THAY ĐỔI
+output_file_depth = "xgb_tuning.png" 
 plt.savefig(output_file_depth)
 plt.close() 
 print(f"Đã lưu biểu đồ tìm max_depth vào file: {output_file_depth}")
 
 # --- 5. HUẤN LUYỆN MÔ HÌNH CHÍNH ---
-xgb_model_main = XGBClassifier( # <-- THAY ĐỔI
+xgb_model_main = XGBClassifier( 
     n_estimators=N_ESTIMATORS,
     learning_rate = 0.05,
     max_depth=best_depth, 
     random_state=42,
-    scale_pos_weight=scale_pos_weight, # <-- THAY ĐỔI
+    scale_pos_weight=scale_pos_weight, 
     n_jobs=-1,
     eval_metric='logloss'
 )
@@ -113,13 +108,10 @@ print("Huấn luyện hoàn tất.")
 
 # --- 6. DỰ ĐOÁN VÀ ĐÁNH GIÁ MÔ HÌNH CHÍNH ---
 print("\n--- 5. Đánh giá hiệu suất mô hình CHÍNH ---")
-# Lưu ý: 'scale_pos_weight' đã tự động điều chỉnh ngưỡng,
-# nên .predict() (ngưỡng 0.5) đã được tối ưu cho Recall.
 y_pred_xgb = xgb_model_main.predict(X_test)
 accuracy_xgb = accuracy_score(y_test, y_pred_xgb)
 
 print(f"Accuracy (Độ chính xác tổng thể): {accuracy_xgb:.4f}")
-print("-> LƯU Ý: Tập trung vào 'Recall' của lớp 'High Value Churn (1)'.")
 
 target_names = [NEGATIVE_CLASS_NAME, POSITIVE_CLASS_NAME]
 print("\nBáo cáo phân loại chi tiết (Precision, Recall, F1-Score):")
@@ -127,58 +119,22 @@ print(classification_report(y_test, y_pred_xgb, target_names=target_names, zero_
 
 # --- 7. VẼ VÀ LƯU MA TRẬN NHẦM LẪN ---
 print("--- 6. Đang tạo Ma trận nhầm lẫn ---")
-tn, fp, fn, tp = confusion_matrix(y_test, y_pred_xgb).ravel()
-matrix_display = np.array([
-    [tp, fp],  
-    [fn, tn]   
-])
+cm_xgb = confusion_matrix(y_test, y_pred_xgb)
+axis_labels = [NEGATIVE_CLASS_NAME, POSITIVE_CLASS_NAME]
 
-axis_labels = [POSITIVE_CLASS_NAME, NEGATIVE_CLASS_NAME]
 plt.figure(figsize=(8, 6))
 sns.heatmap(
-    matrix_display, 
+    cm_xgb, 
     annot=True, fmt='d', cmap='Blues', 
     xticklabels=axis_labels, 
     yticklabels=axis_labels  
 )
 plt.title(f'Ma trận nhầm lẫn (XGBoost) | Accuracy: {accuracy_xgb:.2%}', fontsize=14)
-plt.xlabel('Thực tế (Fact)', fontsize=12)
-plt.ylabel('Dự đoán (Classified)', fontsize=12)
+plt.xlabel('Predicted (Dự đoán)', fontsize=12) 
+plt.ylabel('True (Thực tế)', fontsize=12)    
 plt.tight_layout()
 
-output_file_cm = "churn_xgb_matrix.png" # <-- THAY ĐỔI
-plt.savefig(output_file_cm)
+output_file_cm = "xgb_matrix.png" 
+plt.savefig(output_file_cm, dpi=300) 
 plt.close()
 print(f"Đã lưu Ma trận nhầm lẫn vào file: {output_file_cm}")
-
-# --- 8. VẼ VÀ LƯU MỨC ĐỘ QUAN TRỌNG CỦA ĐẶC TRƯNG ---
-print(f"\n--- 7. Đang tạo biểu đồ Feature Importance... ---")
-
-# Lấy thông tin từ mô hình đã huấn luyện
-importances = xgb_model_main.feature_importances_
-feature_df = pd.DataFrame({
-    'Feature': FEATURE_COLUMNS,
-    'Importance': importances
-}).sort_values(by='Importance', ascending=False)
-
-plt.figure(figsize=(10, 6))
-barplot = sns.barplot(
-    data=feature_df, 
-    x='Importance', 
-    y='Feature', 
-    palette='viridis'
-)
-plt.title('Mức độ quan trọng của Đặc trưng (Feature Importance)', fontsize=16)
-plt.xlabel('Mức độ quan trọng', fontsize=12)
-plt.ylabel('Đặc trưng', fontsize=12)
-barplot.bar_label(barplot.containers[0], fmt='%.3f', padding=5) # Thêm số %
-plt.tight_layout()
-
-output_file_features = "churn_xgb_feature_importance.png" # <-- THAY ĐỔI
-plt.savefig(output_file_features, dpi=300)
-plt.close()
-print(f"Đã lưu biểu đồ Feature Importance vào file: {output_file_features}")
-
-print("\n" + "="*50)
-print("--- BƯỚC 5 (XGBoost) HOÀN TẤT ---")
-print("="*50 + "\n")

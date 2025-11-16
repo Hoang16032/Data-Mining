@@ -1,11 +1,11 @@
 import matplotlib 
-matplotlib.use('Agg') # Thêm dòng này nếu bạn gặp lỗi RuntimeError
+matplotlib.use('Agg') 
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.neighbors import KNeighborsClassifier # <<< THAY ĐỔI
-from sklearn.preprocessing import StandardScaler   # <<< BẮT BUỘC: Thêm thư viện chuẩn hóa
+from sklearn.neighbors import KNeighborsClassifier 
+from sklearn.preprocessing import StandardScaler  
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import train_test_split
 import warnings
@@ -13,17 +13,11 @@ import numpy as np
 import os
 
 warnings.filterwarnings('ignore')
-
-# --- CÁC THAM SỐ CỐ ĐỊNH ---
 INPUT_FILE = "rfm_training_data.csv"
 FEATURE_COLUMNS = ['Recency', 'Frequency', 'Monetary']
 TARGET_COLUMN = 'y_HighValueChurn'
 POSITIVE_CLASS_NAME = 'High Value Churn (1)'
 NEGATIVE_CLASS_NAME = 'Khác (0)'
-
-print("\n" + "="*50)
-print(f"--- BƯỚC 7: HUẤN LUYỆN MÔ HÌNH K-NEAREST NEIGHBORS (KNN) ---")
-print("="*50 + "\n")
 
 # --- 1. TẢI DỮ LIỆU ---
 try:
@@ -48,19 +42,16 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 print("\n--- 2. Đã chia dữ liệu thành Train (80%) và Test (20%) ---")
 
-# --- 4. (MỚI) CHUẨN HÓA DỮ LIỆU (SCALING) ---
+# --- 4. CHUẨN HÓA DỮ LIỆU (SCALING) ---
 # Đây là bước BẮT BUỘC cho KNN
 print("\n--- 3. Đang chuẩn hóa (StandardScaler) dữ liệu... ---")
 scaler = StandardScaler()
 X_train_scaled = scaler.fit_transform(X_train)
-X_test_scaled = scaler.transform(X_test) # Chỉ transform tập Test
-
+X_test_scaled = scaler.transform(X_test) 
 print("Chuẩn hóa hoàn tất.")
-
 
 # --- 5. TÌM k TỐI ƯU (n_neighbors) ---
 print(f"\n--- 4. Đang tìm 'k' (n_neighbors) tối ưu... ---")
-# Chỉ quét các số lẻ để tránh hòa phiếu
 k_values = range(3, 22, 2) 
 test_f1_scores = []
 
@@ -68,19 +59,15 @@ for k in k_values:
     model_temp = KNeighborsClassifier(
         n_neighbors=k,
         n_jobs=-1,
-        weights='distance' # Thử dùng trọng số (hàng xóm gần hơn có giá trị hơn)
+        weights='distance' 
     )
-    # <<< THAY ĐỔI: Fit trên dữ liệu đã chuẩn hóa >>>
     model_temp.fit(X_train_scaled, y_train)
-    
-    # <<< THAY ĐỔI: Dự đoán trên dữ liệu đã chuẩn hóa >>>
     y_pred_test_temp = model_temp.predict(X_test_scaled)
     test_f1_scores.append(f1_score(y_test, y_pred_test_temp, pos_label=1))
 
 # Tìm k tốt nhất (nơi F1-Score cao nhất)
 best_k = k_values[np.argmax(test_f1_scores)]
 print(f"Đã quét xong. 'k' tối ưu (có Test F1-Score cao nhất) là: {best_k}")
-
 
 # --- 5.1: VẼ BIỂU ĐỒ TEST F1-SCORE ---
 plt.figure(figsize=(10, 6))
@@ -91,7 +78,7 @@ plt.ylabel(f'F1-Score (cho lớp "{POSITIVE_CLASS_NAME}")')
 plt.axvline(x=best_k, color='grey', linestyle='--', label=f'Best k = {best_k}')
 plt.legend()
 plt.grid(True)
-output_file_depth = "churn_knn_tuning.png" # <-- THAY ĐỔI
+output_file_depth = "knn_tuning.png"
 plt.savefig(output_file_depth)
 plt.close() 
 print(f"Đã lưu biểu đồ tìm 'k' vào file: {output_file_depth}")
@@ -112,8 +99,7 @@ print("\n--- 6. Đánh giá hiệu suất mô hình ---")
 y_pred_knn = knn_model_main.predict(X_test_scaled) 
 accuracy_knn = accuracy_score(y_test, y_pred_knn)
 
-print(f"Accuracy (Độ chính xác tổng thể): {accuracy_knn:.4f}")
-print("-> LƯU Ý: KNN không có 'class_weight'. Hãy kiểm tra 'Recall' (sẽ rất thấp).")
+print(f"Accuracy: {accuracy_knn:.4f}")
 
 target_names = [NEGATIVE_CLASS_NAME, POSITIVE_CLASS_NAME]
 print("\nBáo cáo phân loại chi tiết (Precision, Recall, F1-Score):")
@@ -121,32 +107,22 @@ print(classification_report(y_test, y_pred_knn, target_names=target_names, zero_
 
 # --- 8. VẼ VÀ LƯU MA TRẬN NHẦM LẪN ---
 print("--- 7. Đang tạo Ma trận nhầm lẫn ---")
-tn, fp, fn, tp = confusion_matrix(y_test, y_pred_knn).ravel()
-matrix_display = np.array([
-    [tp, fp],  
-    [fn, tn]   
-])
+cm_knn = confusion_matrix(y_test, y_pred_knn)
+axis_labels = [NEGATIVE_CLASS_NAME, POSITIVE_CLASS_NAME]
 
-axis_labels = [POSITIVE_CLASS_NAME, NEGATIVE_CLASS_NAME]
 plt.figure(figsize=(8, 6))
 sns.heatmap(
-    matrix_display, 
+    cm_knn, 
     annot=True, fmt='d', cmap='Blues', 
     xticklabels=axis_labels, 
     yticklabels=axis_labels  
 )
 plt.title(f'Ma trận nhầm lẫn (KNN) | Accuracy: {accuracy_knn:.2%}', fontsize=14)
-plt.xlabel('Thực tế (Fact)', fontsize=12)
-plt.ylabel('Dự đoán (Classified)', fontsize=12)
+plt.xlabel('Predicted (Dự đoán)', fontsize=12) 
+plt.ylabel('True (Thực tế)', fontsize=12)   
 plt.tight_layout()
 
-output_file_cm = "churn_knn_matrix.png" # <-- THAY ĐỔI
-plt.savefig(output_file_cm)
+output_file_cm = "knn_matrix.png" 
+plt.savefig(output_file_cm, dpi=300) 
 plt.close()
 print(f"Đã lưu Ma trận nhầm lẫn vào file: {output_file_cm}")
-
-# --- KNN KHÔNG CÓ FEATURE IMPORTANCE ---
-
-print("\n" + "="*50)
-print("--- BƯỚC 7 (KNN) HOÀN TẤT ---")
-print("="*50 + "\n")
